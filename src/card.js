@@ -69,7 +69,8 @@ const Card = (stack, targetElement) => {
         Card.appendToParent(targetElement);
 
         eventEmitter.on('panstart', () => {
-            Card.appendToParent(targetElement);
+            //Card.appendToParent(targetElement);
+            Card.recalculateTranslateZ(targetElement);
 
             eventEmitter.trigger('dragstart', {
                 target: targetElement
@@ -97,10 +98,16 @@ const Card = (stack, targetElement) => {
         eventEmitter.on('panend', (e) => {
             isDraging = false;
 
-            const x = lastTranslate.x + e.deltaX;
-            const y = lastTranslate.y + e.deltaY;
+            var x = lastTranslate.x + e.deltaX;
+            var y = lastTranslate.y + e.deltaY;
 
             if (config.isThrowOut(x, targetElement, config.throwOutConfidence(x, targetElement))) {
+                console.log(x,y);
+                const pileCoord = (x < 0)? config.leftPileCoord:config.rightPileCoord;
+                if(pileCoord){
+                    x = (isNaN(pileCoord.x))? x:pileCoord.x;
+                    y = (isNaN(pileCoord.y))? y:pileCoord.y;
+                } 
                 card.throwOut(x, y);
             } else {
                 card.throwIn(x, y);
@@ -194,22 +201,25 @@ const Card = (stack, targetElement) => {
             if (currentX === lastX && currentY === lastY) {
                 return;
             }
+            raf(()=>{
 
-            lastX = currentX;
-            lastY = currentY;
+                lastX = currentX;
+                lastY = currentY;
 
-            x = lastTranslate.x + currentX;
-            y = lastTranslate.y + currentY;
-            r = config.rotation(x, y, targetElement, config.maxRotation);
+                x = lastTranslate.x + currentX;
+                y = lastTranslate.y + currentY;
+                r = config.rotation(x, y, targetElement, config.maxRotation);
 
-            config.transform(targetElement, x, y, r);
+                config.transform(targetElement, x, y, r);
 
-            eventEmitter.trigger('dragmove', {
-                target: targetElement,
-                throwOutConfidence: config.throwOutConfidence(x, targetElement),
-                throwDirection: x < 0 ? Card.DIRECTION_LEFT : Card.DIRECTION_RIGHT,
-                offset: x
-            });
+                eventEmitter.trigger('dragmove', {
+                    target: targetElement,
+                    throwOutConfidence: config.throwOutConfidence(x, targetElement),
+                    throwDirection: x < 0 ? Card.DIRECTION_LEFT : Card.DIRECTION_RIGHT,
+                    offset: x
+                });
+
+            })
         };
 
         /**
@@ -220,14 +230,17 @@ const Card = (stack, targetElement) => {
          * @return {undefined}
          */
         onSpringUpdate = (x, y) => {
-            let r;
+            raf(()=>{
+                let r;
 
-            r = config.rotation(x, y, targetElement, config.maxRotation);
+                r = config.rotation(x, y, targetElement, config.maxRotation);
 
-            lastTranslate.x = x || 0;
-            lastTranslate.y = y || 0;
+                lastTranslate.x = x || 0;
+                lastTranslate.y = y || 0;
 
-            Card.transform(targetElement, x, y, r);
+                Card.transform(targetElement, x, y, r);
+
+            })
         };
 
         /**
@@ -240,6 +253,8 @@ const Card = (stack, targetElement) => {
             lastThrow.fromX = fromX;
             lastThrow.fromY = fromY;
             lastThrow.direction = lastThrow.fromX < 0 ? Card.DIRECTION_LEFT : Card.DIRECTION_RIGHT;
+
+            Card.recalculateTranslateZ(targetElement);
 
             if (where === Card.THROW_IN) {
                 springThrowIn.setCurrentValue(0).setAtRest().setEndValue(1);
@@ -334,6 +349,8 @@ Card.makeConfig = (config = {}) => {
         minThrowOutDistance: 400,
         maxThrowOutDistance: 500,
         rotation: Card.rotation,
+        leftPileCoord: null,
+        rightPileCoord: null,
         maxRotation: 20,
         transform: Card.transform
     };
@@ -353,8 +370,38 @@ Card.makeConfig = (config = {}) => {
  * @return {undefined}
  */
 Card.transform = (element, x, y, r) => {
-    element.style[vendorPrefix('transform')] = `translate3d(0, 0, 0) translate(${x}px, ${y}px) rotate(${r}deg)`;
+    raf(()=>{
+        var tz = element.style[vendorPrefix('transform')];
+        var match = tz.match(/translate3d\(\-?\d+px\,\s*\-?\d+px\,\s*\-?\d+px\)/gi);
+        var [x_px, y_px, z_px] = (match.length)?match[0].match(/\-?\d+px/gi):['0px','0px','0px'];
+        element.style[vendorPrefix('transform')] = 
+        `translate3d(${Math.round(x)}px, ${Math.round(y)}px, ${z_px}) rotate(${r}deg)`;
+    })
 };
+
+Card.recalculateTranslateZ = (targetElement, resetStack) =>{
+    // We should use translate3d to set the z-ordering of the cards 
+    // instead of detaching and reattaching node to container
+    // This reduces the DOM node re-rendering
+    raf(()=>{
+        for (var i = 0; i < targetElement.parentNode.children.length; i++) {
+            var tz = targetElement.parentNode.children[i].style[vendorPrefix('transform')];
+            var match = tz.match(/translate3d\(\-?\d+px\,\s*\-?\d+px\,\s*\-?\d+px\)/gi);
+            var [_unused, x, y, z] = (match.length)?match[0].match(/\-?\d+/gi):[null,'0','0','0'];
+            z=(targetElement.parentNode.children[i] !== targetElement)? Math.max(Number(z)-1,0): targetElement.parentNode.children.length-1;
+            x=(resetStack)? 0:x;
+            y=(resetStack)? 0:y;
+            z=(resetStack)? i:z;
+
+
+            targetElement.parentNode.children[i].style[vendorPrefix('transform')] = tz
+            .replace(
+                /translate3d\(\-?\d+px\,\s*\-?\d+px\,\s*\-?\d+px\)/gi,
+                `translate3d(${x}px, ${y}px, ${z}px)`
+            );
+        };
+    });
+}
 
 /**
  * Append element to the parentNode.
