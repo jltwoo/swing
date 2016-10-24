@@ -69,6 +69,7 @@ const Card = (stack, targetElement) => {
         Card.appendToParent(targetElement);
 
         eventEmitter.on('panstart', () => {
+            if(isDraging) return;
             //Card.appendToParent(targetElement);
             Card.recalculateTranslateZ(targetElement);
 
@@ -118,10 +119,13 @@ const Card = (stack, targetElement) => {
             });
         });
 
-        // "mousedown" event fires late on touch enabled devices, thus listening
-        // to the touchstart event for touch enabled devices and mousedown otherwise.
         if (isTouchDevice()) {
+            // "mousedown" event fires late on touch enabled devices, thus listening
+            // to the touchstart event for touch enabled devices and mousedown otherwise.
             targetElement.addEventListener('touchstart', () => {
+                eventEmitter.trigger('panstart');
+            });
+            targetElement.addEventListener('mousedown', () => {
                 eventEmitter.trigger('panstart');
             });
 
