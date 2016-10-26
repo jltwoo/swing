@@ -166,17 +166,20 @@ var Card = function Card(stack, targetElement) {
                     dragging = false;
                 });
 
-                global.addEventListener('touchmove', function (e) {
-                    if (dragging) {
-                        e.preventDefault();
-                    }
-                });
+                // Global event is too distruptive to page design
+                // All none-relevant touchmove events will get perturbed
+                // Consider this a bug...
+                // global.addEventListener('touchmove', (e) => {
+                //     if (dragging) {
+                //         e.preventDefault();
+                //     }
+                // });
             })();
         } else {
-            targetElement.addEventListener('mousedown', function () {
-                eventEmitter.trigger('panstart');
-            });
-        }
+                targetElement.addEventListener('mousedown', function () {
+                    eventEmitter.trigger('panstart');
+                });
+            }
 
         mc.on('panmove', function (e) {
             eventEmitter.trigger('panmove', e);

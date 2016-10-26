@@ -142,11 +142,14 @@ const Card = (stack, targetElement) => {
                     dragging = false;
                 });
 
-                global.addEventListener('touchmove', (e) => {
-                    if (dragging) {
-                        e.preventDefault();
-                    }
-                });
+                // Global event is too distruptive to page design
+                // All none-relevant touchmove events will get perturbed
+                // Consider this a bug...
+                // global.addEventListener('touchmove', (e) => {
+                //     if (dragging) {
+                //         e.preventDefault();
+                //     }
+                // });
             })();
         } else {
             targetElement.addEventListener('mousedown', () => {
